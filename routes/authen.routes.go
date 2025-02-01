@@ -11,5 +11,5 @@ func AuthenRoute(r *gin.Engine, middleware middleware.AuthMiddleware, authenServ
 	authenController := controllers.NewAuthenController(authenService)
 
 	r.POST("/authen/signup", authenController.SignUp)
-	r.POST("/authen/login", authenController.SignUp)
+	r.POST("/authen/login", authenController.Login)
 }
