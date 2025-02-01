@@ -16,6 +16,7 @@ type userRepo struct {
 
 type UserRepo interface {
 	Login(user models.User) (models.User, error)
+	GetUserByEmail(email string) (models.User, error)
 	CreateUser(user models.User) error
 }
 
@@ -31,6 +32,19 @@ func (r *userRepo) Login(user models.User) (models.User, error) {
 
 	u := models.User{}
 	filter := bson.M{"email": user.Email, "password": user.Password}
+	err := r.database.FindOne(ctx, filter).Decode(&u)
+	if err != nil {
+		return models.User{}, err
+	}
+	return u, nil
+}
+
+func (r *userRepo) GetUserByEmail(email string) (models.User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	u := models.User{}
+	filter := bson.M{"email": email}
 	err := r.database.FindOne(ctx, filter).Decode(&u)
 	if err != nil {
 		return models.User{}, err

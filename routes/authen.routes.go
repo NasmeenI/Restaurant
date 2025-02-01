@@ -12,4 +12,10 @@ func AuthenRoute(r *gin.Engine, middleware middleware.AuthMiddleware, authenServ
 
 	r.POST("/authen/signup", authenController.SignUp)
 	r.POST("/authen/login", authenController.Login)
+
+	rg := r.Group("/user")
+	rg.Use(middleware.AuthMiddleware())
+	{
+		rg.GET("/me", authenController.GetUserByToken)
+	}
 }

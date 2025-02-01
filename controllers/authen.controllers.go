@@ -17,6 +17,7 @@ type authenController struct {
 }
 
 type AuthenController interface {
+	GetUserByToken(c *gin.Context)
 	Login(c *gin.Context)
 	SignUp(c *gin.Context)
 }
@@ -25,6 +26,21 @@ func NewAuthenController(authenService authen.AuthenService) AuthenController {
 	return &authenController{
 		authenService: authenService,
 	}
+}
+
+func (ac *authenController) GetUserByToken(c *gin.Context) {
+	email, ok := c.Get("email")
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "User not found"})
+		return
+	}
+
+	result, err := ac.authenService.GetUserByEmail(email.(string))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 func (ac *authenController) Login(c *gin.Context) {
