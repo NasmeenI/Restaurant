@@ -15,7 +15,7 @@ type userRepo struct {
 }
 
 type UserRepo interface {
-	Login(username string, password string) (models.User, error)
+	Login(user models.User) (models.User, error)
 	CreateUser(user models.User) error
 }
 
@@ -25,13 +25,12 @@ func NewUserRepo(database *mongo.Collection) UserRepo {
 	}
 }
 
-func (r *userRepo) Login(email string, password string) (models.User, error) {
+func (r *userRepo) Login(user models.User) (models.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	u := models.User{}
-
-	filter := bson.M{"email": email, "password": password}
+	filter := bson.M{"email": user.Email, "password": user.Password}
 	err := r.database.FindOne(ctx, filter).Decode(&u)
 	if err != nil {
 		return models.User{}, err

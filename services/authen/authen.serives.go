@@ -10,7 +10,7 @@ type authenService struct {
 }
 
 type AuthenService interface {
-	CheckCredentials(username string, password string) (models.User, error)
+	CheckCredentials(user models.User) (models.User, error)
 	CreateUser(user models.User) error
 }
 
@@ -20,8 +20,8 @@ func NewAuthenService(userRepo database.UserRepo) AuthenService {
 	}
 }
 
-func (as *authenService) CheckCredentials(username string, password string) (models.User, error) {
-	user, err := as.userRepo.Login(username, password)
+func (as *authenService) CheckCredentials(user models.User) (models.User, error) {
+	user, err := as.userRepo.Login(user)
 	if err != nil {
 		return models.User{}, err
 	}

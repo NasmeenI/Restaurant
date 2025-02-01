@@ -28,11 +28,13 @@ func NewAuthenController(authenService authen.AuthenService) AuthenController {
 }
 
 func (ac *authenController) Login(c *gin.Context) {
-	// In a real application, authenticate the user (this is just an example)
-	email := c.Query("email")
-	password := c.Query("password")
+	user := models.User{}
+	if err := c.ShouldBindJSON(&user); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
 
-	role, err := ac.authenService.CheckCredentials(email, password)
+	user, err := ac.authenService.CheckCredentials(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to login"})
 		return
@@ -40,8 +42,8 @@ func (ac *authenController) Login(c *gin.Context) {
 
 	// Create a new token object, specifying signing method and the claims
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"email": email,
-		"role":  role,
+		"email": user.Email,
+		"role":  user.Role,
 		"exp":   time.Now().Add(time.Hour * 1).Unix(), // Token expiration time
 	})
 
@@ -56,15 +58,12 @@ func (ac *authenController) Login(c *gin.Context) {
 }
 
 func (ac *authenController) SignUp(c *gin.Context) {
-	// In a real application, authenticate the user (this is just an example)
-	email := c.Query("email")
-	password := c.Query("password")
-
-	user := models.User{
-		Email:    email,
-		Password: password,
-		Role:     "user",
+	user := models.User{}
+	if err := c.ShouldBindJSON(&user); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
 	}
+	user.Role = "user"
 
 	err := ac.authenService.CreateUser(user)
 	if err != nil {
