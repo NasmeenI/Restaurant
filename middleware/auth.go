@@ -44,7 +44,8 @@ func (s authMiddleware) AuthMiddleware() gin.HandlerFunc {
 
 		// Set the token claims to the context
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-			c.Set("claims", claims)
+			c.Set("email", claims["email"].(string))
+			c.Set("role", claims["role"].(string))
 		} else {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 			c.Abort()
@@ -57,8 +58,7 @@ func (s authMiddleware) AuthMiddleware() gin.HandlerFunc {
 
 func (s authMiddleware) AdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		claims := c.MustGet("claims").(jwt.MapClaims)
-		role := claims["role"].(string)
+		role := c.MustGet("role").(string)
 
 		if role != "admin" {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden"})
