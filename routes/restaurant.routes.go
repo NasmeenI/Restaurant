@@ -12,12 +12,11 @@ func RestaurantRoute(r *gin.Engine, middleware middleware.AuthMiddleware, restau
 
 	rg := r.Group("/restaurant")
 	rg.Use(middleware.AuthMiddleware())
-	rg.Use(middleware.AdminMiddleware())
 	{
 		rg.GET("/", RestaurantController.GetRestaurants)
-		rg.GET("/:id", RestaurantController.GetRestaurantById)
-		rg.POST("/", RestaurantController.CreateRestaurants)
-		rg.PUT("/:id", RestaurantController.UpdateRestaurant)
-		rg.DELETE("/:id", RestaurantController.DeleteLRestaurant)
+		rg.GET("/:id", middleware.AdminMiddleware(), RestaurantController.GetRestaurantById)
+		rg.POST("/", middleware.AdminMiddleware(), RestaurantController.CreateRestaurants)
+		rg.PUT("/:id", middleware.AdminMiddleware(), RestaurantController.UpdateRestaurant)
+		rg.DELETE("/:id", middleware.AdminMiddleware(), RestaurantController.DeleteLRestaurant)
 	}
 }

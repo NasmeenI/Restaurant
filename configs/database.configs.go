@@ -11,8 +11,9 @@ import (
 )
 
 type MongoClient struct {
-	User       *mongo.Collection
-	Restaurant *mongo.Collection
+	User        *mongo.Collection
+	Restaurant  *mongo.Collection
+	Reservation *mongo.Collection
 }
 
 func NewMongoClient() (*MongoClient, error) {
@@ -33,7 +34,8 @@ func NewMongoClient() (*MongoClient, error) {
 	}
 	fmt.Println("ping mongo success")
 	return &MongoClient{
-		User:       mongoClient.Database("Final-Project").Collection("users"),
-		Restaurant: mongoClient.Database("Final-Project").Collection("restaurants"),
+		User:        mongoClient.Database("Final-Project").Collection("users"),
+		Restaurant:  mongoClient.Database("Final-Project").Collection("restaurants"),
+		Reservation: mongoClient.Database("Final-Project").Collection("reservations"),
 	}, nil
 }
