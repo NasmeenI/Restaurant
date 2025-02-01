@@ -11,7 +11,7 @@ type Restaurant struct {
 	Name        string             `json:"name" bson:"name"`
 	Address     string             `json:"address" bson:"address"`
 	PhoneNumber string             `json:"phone_number" bson:"phone_number"`
-	OpenTime    string             `json:"open_time" bson:"open_time"`
-	CloseTime   string             `json:"close_time" bson:"close_time"`
+	OpenTime    time.Time          `json:"open_time" bson:"open_time"`
+	CloseTime   time.Time          `json:"close_time" bson:"close_time"`
 	UpdatedAt   time.Time          `json:"updatedAt" bson:"updatedAt"`
 }
