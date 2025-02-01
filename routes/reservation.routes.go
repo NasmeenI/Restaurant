@@ -14,6 +14,10 @@ func ReservationRoute(r *gin.Engine, middleware middleware.AuthMiddleware, reser
 	rg := r.Group("/reservation")
 	rg.Use(middleware.AuthMiddleware())
 	{
-		rg.POST("/:id", ReservationController.CreateReserve)
+		rg.GET("/", middleware.AdminMiddleware(), ReservationController.GetReservations)
+		rg.GET("/:id", middleware.AdminMiddleware(), ReservationController.GetReservationById)
+		rg.POST("/:id", ReservationController.CreateReservation)
+		rg.PUT("/:id", ReservationController.UpdateReservation)
+		rg.DELETE("/:id", ReservationController.DeleteLReservation)
 	}
 }

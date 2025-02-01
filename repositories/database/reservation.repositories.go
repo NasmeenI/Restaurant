@@ -17,14 +17,52 @@ type reservationRepo struct {
 }
 
 type ReservationRepo interface {
+	GetReservations() ([]models.Reservation, error)
+	GetReservationById(id string) (models.Reservation, error)
 	CheckUserReservationLimit(userId string) error
 	CreateReserve(user models.User, restaurantId string, reservation models.Reservation) error
+	UpdateReservation(id string, restaurant models.Reservation) error
+	DeleteLReservation(id string) error
 }
 
 func NewReservationRepo(database *mongo.Collection) ReservationRepo {
 	return &reservationRepo{
 		database: database,
 	}
+}
+
+func (r *reservationRepo) GetReservations() ([]models.Reservation, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	filter := bson.M{}
+	cursor, err := r.database.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	results := []models.Reservation{}
+	if err := cursor.All(context.TODO(), &results); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func (r *reservationRepo) GetReservationById(id string) (models.Reservation, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	objectId, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		log.Fatalf("Invalid ObjectID: %v", err)
+	}
+
+	filter := bson.M{"_id": objectId}
+	result := models.Reservation{}
+	if err := r.database.FindOne(ctx, filter).Decode(&result); err != nil {
+		return models.Reservation{}, err
+	}
+	return result, nil
 }
 
 func (r *reservationRepo) CheckUserReservationLimit(userId string) error {
@@ -42,7 +80,6 @@ func (r *reservationRepo) CheckUserReservationLimit(userId string) error {
 		return fmt.Errorf("failed to count reservations: %v", err)
 	}
 
-	// ถ้ามีการจองมากกว่าหรือเท่ากับ 3 ครั้ง ให้คืนค่า true
 	if count > 3 {
 		return fmt.Errorf("user %v has more than 3 reservations", userId)
 	}
@@ -53,18 +90,68 @@ func (r *reservationRepo) CreateReserve(user models.User, restaurantId string, r
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	objectRestaurantId, err := primitive.ObjectIDFromHex(restaurantId)
+	objectReservationId, err := primitive.ObjectIDFromHex(restaurantId)
 	if err != nil {
 		log.Fatalf("Invalid ObjectID: %v", err)
 	}
 
 	reservation.ID = primitive.NewObjectID()
 	reservation.UserId = user.ID
-	reservation.RestaurantId = objectRestaurantId
+	reservation.RestaurantId = objectReservationId
 	reservation.UpdatedAt = time.Now()
 	_, err = r.database.InsertOne(ctx, reservation)
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func (r *reservationRepo) UpdateReservation(id string, reservation models.Reservation) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	objectId, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		log.Fatalf("Invalid ObjectID: %v", err)
+	}
+
+	reservation.UpdatedAt = time.Now()
+
+	updateData := bson.M{
+		"user_id":       reservation.UserId,
+		"restaurant_id": reservation.RestaurantId,
+		"date":          reservation.Date,
+		"updatedAt":     reservation.UpdatedAt,
+	}
+
+	filter := bson.M{"_id": objectId}
+	update := bson.M{"$set": updateData}
+	result, err := r.database.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return err
+	}
+	if result.ModifiedCount == 0 {
+		return fmt.Errorf("no reservation found to update")
+	}
+	return nil
+}
+
+func (r *reservationRepo) DeleteLReservation(id string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	objectId, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		log.Fatalf("Invalid ObjectID: %v", err)
+	}
+
+	filter := bson.M{"_id": objectId}
+	result, err := r.database.DeleteOne(ctx, filter)
+	if err != nil {
+		return err
+	}
+	if result.DeletedCount == 0 {
+		return fmt.Errorf("no reservation found to delete")
 	}
 	return nil
 }

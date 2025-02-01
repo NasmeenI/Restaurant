@@ -9,19 +9,39 @@ import (
 )
 
 type reservationService struct {
-	reserveRepo    database.ReservationRepo
-	restaurantRepo database.RestaurantRepo
+	reservationRepo database.ReservationRepo
+	restaurantRepo  database.RestaurantRepo
 }
 
 type ReservationService interface {
+	GetReservations() ([]models.Reservation, error)
+	GetReservationById(id string) (models.Reservation, error)
 	CreateReserve(user models.User, restaurantId string, reservation models.Reservation) (models.Reservation, error)
+	UpdateReservation(id string, restaurant models.Reservation) error
+	DeleteLReservation(id string) error
 }
 
 func NewReservationService(reservationRepo database.ReservationRepo, restaurantRepo database.RestaurantRepo) ReservationService {
 	return &reservationService{
-		reserveRepo:    reservationRepo,
-		restaurantRepo: restaurantRepo,
+		reservationRepo: reservationRepo,
+		restaurantRepo:  restaurantRepo,
 	}
+}
+
+func (rs *reservationService) GetReservations() ([]models.Reservation, error) {
+	restaurants, err := rs.reservationRepo.GetReservations()
+	if err != nil {
+		return nil, err
+	}
+	return restaurants, nil
+}
+
+func (rs *reservationService) GetReservationById(id string) (models.Reservation, error) {
+	restaurant, err := rs.reservationRepo.GetReservationById(id)
+	if err != nil {
+		return models.Reservation{}, err
+	}
+	return restaurant, nil
 }
 
 func (rs *reservationService) CreateReserve(user models.User, restaurantId string, reservation models.Reservation) (models.Reservation, error) {
@@ -30,7 +50,7 @@ func (rs *reservationService) CreateReserve(user models.User, restaurantId strin
 		return models.Reservation{}, err
 	}
 
-	err = rs.reserveRepo.CheckUserReservationLimit(user.ID.Hex())
+	err = rs.reservationRepo.CheckUserReservationLimit(user.ID.Hex())
 	if err != nil {
 		return models.Reservation{}, err
 	}
@@ -40,7 +60,7 @@ func (rs *reservationService) CreateReserve(user models.User, restaurantId strin
 		return models.Reservation{}, err
 	}
 
-	err = rs.reserveRepo.CreateReserve(user, restaurantId, reservation)
+	err = rs.reservationRepo.CreateReserve(user, restaurantId, reservation)
 	if err != nil {
 		return models.Reservation{}, err
 	}
@@ -60,5 +80,21 @@ func (rs *reservationService) checkReservationInOpenHours(reservation models.Res
 		return errors.New("reservation time is outside of the restaurant's operating hours")
 	}
 
+	return nil
+}
+
+func (rs *reservationService) UpdateReservation(id string, restaurant models.Reservation) error {
+	err := rs.reservationRepo.UpdateReservation(id, restaurant)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (rs *reservationService) DeleteLReservation(id string) error {
+	err := rs.reservationRepo.DeleteLReservation(id)
+	if err != nil {
+		return err
+	}
 	return nil
 }
