@@ -17,6 +17,7 @@ type reservationController struct {
 type ReservationController interface {
 	GetReservations(c *gin.Context)
 	GetReservationById(c *gin.Context)
+	GetReservationsByUser(c *gin.Context)
 	CreateReservation(c *gin.Context)
 	UpdateReservation(c *gin.Context)
 	DeleteLReservation(c *gin.Context)
@@ -41,6 +42,26 @@ func (rc *reservationController) GetReservations(c *gin.Context) {
 func (rc *reservationController) GetReservationById(c *gin.Context) {
 	id := c.Param("id")
 	restaurant, err := rc.reservationService.GetReservationById(id)
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, restaurant)
+}
+
+func (rc *reservationController) GetReservationsByUser(c *gin.Context) {
+	email, ok := c.Get("email")
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "User not found"})
+		return
+	}
+	user, err := rc.authenService.GetUserByEmail(email.(string))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+
+	restaurant, err := rc.reservationService.GetReservationsByUser(user)
 	if err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return

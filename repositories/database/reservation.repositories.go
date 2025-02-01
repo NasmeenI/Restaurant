@@ -19,6 +19,7 @@ type reservationRepo struct {
 type ReservationRepo interface {
 	GetReservations() ([]models.Reservation, error)
 	GetReservationById(id string) (models.Reservation, error)
+	GetReservationsByUser(user models.User) ([]models.Reservation, error)
 	CheckUserReservationLimit(userId string) error
 	CreateReserve(user models.User, restaurantId string, reservation models.Reservation) error
 	UpdateReservation(id string, restaurant models.Reservation) error
@@ -65,6 +66,33 @@ func (r *reservationRepo) GetReservationById(id string) (models.Reservation, err
 	return result, nil
 }
 
+func (r *reservationRepo) GetReservationsByUser(user models.User) ([]models.Reservation, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	log.Println("user_id", user.ID.Hex())
+	filter := bson.M{"user_id": user.ID}
+	var reservations []models.Reservation
+
+	cursor, err := r.database.Find(ctx, filter)
+	if err != nil {
+		return []models.Reservation{}, nil
+	}
+	defer cursor.Close(ctx)
+
+	for cursor.Next(ctx) {
+		var reservation models.Reservation
+		if err := cursor.Decode(&reservation); err != nil {
+			return nil, err
+		}
+		reservations = append(reservations, reservation)
+	}
+
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+	return reservations, nil
+}
+
 func (r *reservationRepo) CheckUserReservationLimit(userId string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -80,7 +108,7 @@ func (r *reservationRepo) CheckUserReservationLimit(userId string) error {
 		return fmt.Errorf("failed to count reservations: %v", err)
 	}
 
-	if count > 3 {
+	if count >= 3 {
 		return fmt.Errorf("user %v has more than 3 reservations", userId)
 	}
 	return nil

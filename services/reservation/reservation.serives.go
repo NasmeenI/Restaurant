@@ -16,6 +16,7 @@ type reservationService struct {
 type ReservationService interface {
 	GetReservations() ([]models.Reservation, error)
 	GetReservationById(id string) (models.Reservation, error)
+	GetReservationsByUser(user models.User) ([]models.Reservation, error)
 	CreateReserve(user models.User, restaurantId string, reservation models.Reservation) (models.Reservation, error)
 	UpdateReservation(id string, restaurant models.Reservation) error
 	DeleteLReservation(id string) error
@@ -40,6 +41,14 @@ func (rs *reservationService) GetReservationById(id string) (models.Reservation,
 	restaurant, err := rs.reservationRepo.GetReservationById(id)
 	if err != nil {
 		return models.Reservation{}, err
+	}
+	return restaurant, nil
+}
+
+func (rs *reservationService) GetReservationsByUser(user models.User) ([]models.Reservation, error) {
+	restaurant, err := rs.reservationRepo.GetReservationsByUser(user)
+	if err != nil {
+		return []models.Reservation{}, err
 	}
 	return restaurant, nil
 }
