@@ -8,6 +8,7 @@ import (
 	"github.com/NasmeenI/finalProject/repositories/database"
 	"github.com/NasmeenI/finalProject/routes"
 	"github.com/NasmeenI/finalProject/services/authen"
+	"github.com/NasmeenI/finalProject/services/food"
 	"github.com/NasmeenI/finalProject/services/reservation"
 	"github.com/NasmeenI/finalProject/services/restaurant"
 	"github.com/gin-gonic/gin"
@@ -28,6 +29,7 @@ func main() {
 	// Initialize a new services
 	authenService := authen.NewAuthenService(userRepo)
 	restaurantService := restaurant.NewRestaurantService(restaurantRepo)
+	foodService := food.NewFoodService(restaurantRepo)
 	reservationService := reservation.NewReservationService(reservationRepo, restaurantRepo)
 
 	// Initialize a new client for firebase authentication
@@ -37,7 +39,7 @@ func main() {
 	r := gin.Default()
 	r.Use(configs.EnableCORS())
 	routes.AuthenRoute(r, middleware, authenService)
-	routes.RestaurantRoute(r, middleware, restaurantService)
+	routes.RestaurantRoute(r, middleware, restaurantService, foodService)
 	routes.ReservationRoute(r, middleware, reservationService, authenService)
 
 	log.Fatal(r.Run(":" + configs.GetEnv("GO_PORT")))

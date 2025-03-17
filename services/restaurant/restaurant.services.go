@@ -12,6 +12,7 @@ type restaurntService struct {
 type RestaurantService interface {
 	GetRestaurants() ([]models.Restaurant, error)
 	GetRestaurantById(id string) (models.Restaurant, error)
+	GetRestaurantsByCategory(category string) ([]models.Restaurant, error)
 	CreateRestaurants(restaurants []models.Restaurant) ([]models.Restaurant, error)
 	UpdateRestaurant(id string, restaurant models.Restaurant) error
 	DeleteLRestaurant(id string) error
@@ -37,6 +38,14 @@ func (rs *restaurntService) GetRestaurantById(id string) (models.Restaurant, err
 		return models.Restaurant{}, err
 	}
 	return restaurant, nil
+}
+
+func (rs *restaurntService) GetRestaurantsByCategory(category string) ([]models.Restaurant, error) {
+	restaurants, err := rs.restaurantRepo.GetRestaurantsByCategory(category)
+	if err != nil {
+		return []models.Restaurant{}, err
+	}
+	return restaurants, nil
 }
 
 func (rs *restaurntService) CreateRestaurants(restaurants []models.Restaurant) ([]models.Restaurant, error) {
