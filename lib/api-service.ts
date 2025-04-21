@@ -78,22 +78,22 @@ export const restaurantApi = {
 // Reservation API calls
 export const reservationApi = {
   getOwned: async () => {
-    const response = await api.get("/reservation")
+    const response = await api.get("/reservations")
     return response.data
   },
 
   create: async (restaurantId: string, reservationData: any) => {
-    const response = await api.post(`/reservation/${restaurantId}`, reservationData)
+    const response = await api.post(`/reservations/${restaurantId}`, reservationData)
     return response.data
   },
 
   update: async (id: string, reservationData: any) => {
-    const response = await api.patch(`/reservation/${id}`, reservationData)
+    const response = await api.patch(`/reservations/${id}`, reservationData)
     return response.data
   },
 
   delete: async (id: string) => {
-    const response = await api.delete(`/reservation/${id}`)
+    const response = await api.delete(`/reservations/${id}`)
     return response.data
   },
 }
