@@ -1,89 +1,76 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Header from "@/components/Header"
-import ExploreMenu from "@/components/ExploreMenu"
+import ExploreRestaurants from "@/components/ExploreRestaurants"
 import RestaurantDisplay from "@/components/RestaurantDisplay"
 import AppDownloads from "@/components/AppDownloads"
-
-// Sample data - in a real app, this would come from an API
-const menu_list = [
-  { menu_name: "All", menu_image: "/placeholder.svg?height=112&width=112" },
-  { menu_name: "Pizza", menu_image: "/placeholder.svg?height=112&width=112" },
-  { menu_name: "Burger", menu_image: "/placeholder.svg?height=112&width=112" },
-  { menu_name: "Sushi", menu_image: "/placeholder.svg?height=112&width=112" },
-  { menu_name: "Pasta", menu_image: "/placeholder.svg?height=112&width=112" },
-  { menu_name: "Salad", menu_image: "/placeholder.svg?height=112&width=112" },
-  { menu_name: "Dessert", menu_image: "/placeholder.svg?height=112&width=112" },
-  { menu_name: "Drinks", menu_image: "/placeholder.svg?height=112&width=112" },
-]
-
-const restaurantList = [
-  {
-    _id: "1",
-    name: "Pizza Palace",
-    type: "Pizza",
-    address: "123 Main St, New York, NY",
-    openTime: "9:00 AM",
-    closeTime: "10:00 PM",
-  },
-  {
-    _id: "2",
-    name: "Burger Barn",
-    type: "Burger",
-    address: "456 Oak Ave, Los Angeles, CA",
-    openTime: "10:00 AM",
-    closeTime: "11:00 PM",
-  },
-  {
-    _id: "3",
-    name: "Sushi Spot",
-    type: "Sushi",
-    address: "789 Pine Rd, Chicago, IL",
-    openTime: "11:00 AM",
-    closeTime: "9:00 PM",
-  },
-  {
-    _id: "4",
-    name: "Pasta Paradise",
-    type: "Pasta",
-    address: "101 Elm Blvd, Miami, FL",
-    openTime: "11:30 AM",
-    closeTime: "10:30 PM",
-  },
-  {
-    _id: "5",
-    name: "Salad Station",
-    type: "Salad",
-    address: "202 Maple Dr, Seattle, WA",
-    openTime: "8:00 AM",
-    closeTime: "8:00 PM",
-  },
-  {
-    _id: "6",
-    name: "Sweet Treats",
-    type: "Dessert",
-    address: "303 Cherry Ln, Boston, MA",
-    openTime: "10:00 AM",
-    closeTime: "9:00 PM",
-  },
-]
-
-const foodImages = [
-  "/placeholder.svg?height=200&width=300",
-  "/placeholder.svg?height=200&width=300",
-  "/placeholder.svg?height=200&width=300",
-  "/placeholder.svg?height=200&width=300",
-]
+import { restaurantApi } from "@/lib/api-service"
+import { Skeleton } from "@/components/ui/skeleton"
+import { categoryImages } from "@/lib/mock-images"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
 
 export default function Home() {
   const [category, setCategory] = useState("All")
+  const [restaurants, setRestaurants] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchRestaurants = async () => {
+      try {
+        setLoading(true)
+        const data = await restaurantApi.getAll()
+        setRestaurants(data)
+      } catch (err) {
+        console.error("Error fetching restaurants:", err)
+        setError("Failed to load restaurants. Please try again later.")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchRestaurants()
+  }, [])
+
+  if (loading) {
+    return (
+      <>
+        <Header />
+        <div className="container mx-auto py-12 px-4">
+          <div className="max-w-3xl mx-auto text-center mb-10">
+            <Skeleton className="h-10 w-64 mx-auto mb-4" />
+            <Skeleton className="h-4 w-full mx-auto mb-2" />
+            <Skeleton className="h-4 w-5/6 mx-auto" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <Skeleton key={index} className="h-[300px] w-full rounded-lg" />
+            ))}
+          </div>
+        </div>
+      </>
+    )
+  }
 
   return (
     <>
       <Header />
-      <ExploreMenu category={category} setCategory={setCategory} menu_list={menu_list} />
-      <RestaurantDisplay category={category} restaurantList={restaurantList} foodImages={foodImages} />
+      <ExploreRestaurants category={category} setCategory={setCategory} restaurant_types={categoryImages} />
+
+      {error && (
+        <div className="container mx-auto px-4 my-4">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </div>
+      )}
+
+      <RestaurantDisplay category={category} restaurantList={restaurants} />
       <AppDownloads />
     </>
   )

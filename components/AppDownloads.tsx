@@ -10,8 +10,8 @@ export default function AppDownloads() {
             For Better Experience Download <br /> Tomato App
           </h2>
           <p className="text-muted-foreground mb-8">
-            Get the full experience with our mobile app. Order faster, track deliveries in real-time, and enjoy
-            exclusive offers.
+            Get the full experience with our mobile app. Find restaurants, make reservations, and get exclusive offers
+            on the go.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Button variant="outline" size="lg" className="flex items-center gap-2 px-6">

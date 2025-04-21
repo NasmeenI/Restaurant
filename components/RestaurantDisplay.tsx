@@ -4,6 +4,7 @@ import { useState } from "react"
 import RestaurantItem from "./RestaurantItem"
 import { Button } from "@/components/ui/button"
 import { Search } from "lucide-react"
+import { getRestaurantImage } from "@/lib/mock-images"
 
 interface Restaurant {
   _id: string
@@ -17,16 +18,11 @@ interface Restaurant {
 interface RestaurantDisplayProps {
   category: string
   restaurantList: Restaurant[]
-  foodImages: string[]
+  foodImages?: string[]
 }
 
 export default function RestaurantDisplay({ category, restaurantList, foodImages }: RestaurantDisplayProps) {
   const [searchQuery, setSearchQuery] = useState("")
-
-  const getRandomRestaurantImage = () => {
-    const randomIndex = Math.floor(Math.random() * foodImages.length)
-    return foodImages[randomIndex]
-  }
 
   const filteredRestaurants = restaurantList.filter(
     (restaurant) =>
@@ -40,7 +36,7 @@ export default function RestaurantDisplay({ category, restaurantList, foodImages
     <section className="py-12" id="restaurant-display">
       <div className="container px-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-          <h2 className="text-3xl font-bold">Top dishes near you</h2>
+          <h2 className="text-3xl font-bold">Top restaurants near you</h2>
 
           <div className="relative max-w-md w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -60,7 +56,7 @@ export default function RestaurantDisplay({ category, restaurantList, foodImages
               <RestaurantItem
                 key={restaurant._id || index}
                 restaurant={restaurant}
-                image={getRandomRestaurantImage()}
+                image={getRestaurantImage(restaurant.type)}
               />
             ))}
           </div>

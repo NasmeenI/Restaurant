@@ -2,13 +2,11 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import axios from "axios"
-import { format } from "date-fns"
+import { format, parseISO } from "date-fns"
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Trash2, Edit, Calendar, Clock, Users, MapPin } from "lucide-react"
+import { Trash2, Edit, Calendar, Clock, Users, MapPin, Loader2 } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +19,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useToast } from "@/components/ui/use-toast"
+import { useAuth } from "@/context/auth-context"
+import { reservationApi, restaurantApi } from "@/lib/api-service"
 
 interface Restaurant {
   _id: string
@@ -36,12 +37,10 @@ interface Reservation {
   _id: string
   restaurantId: string
   userId: string
-  date: string
-  time: string
-  duration: string
   seats: number
-  status: "confirmed" | "pending" | "cancelled"
-  createdAt: string
+  startTime: string
+  endTime: string
+  status?: string
   restaurant?: Restaurant
 }
 
@@ -50,11 +49,11 @@ export default function ReservationHistory() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
-  const router = useRouter()
+  const [isDeleting, setIsDeleting] = useState(false)
 
-  // In a real app, these would come from your auth context or environment variables
-  const url = process.env.NEXT_PUBLIC_API_URL || "https://api.example.com"
-  const token = "your-auth-token" // This would come from your auth context
+  const router = useRouter()
+  const { toast } = useToast()
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
 
   const fetchReservations = async () => {
     setLoading(true)
@@ -62,26 +61,16 @@ export default function ReservationHistory() {
 
     try {
       // Fetch user's reservations
-      const response = await axios.get(`${url}/reservation`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      const reservationsData = response.data
+      const reservationsData = await reservationApi.getOwned()
 
       // Enhance reservations with restaurant data
       const enhancedReservationsPromises = reservationsData.map(async (reservation: Reservation) => {
         try {
-          const restaurantResponse = await axios.get(`${url}/restaurants/${reservation.restaurantId}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          })
+          const restaurantData = await restaurantApi.getById(reservation.restaurantId)
 
           return {
             ...reservation,
-            restaurant: restaurantResponse.data.restaurant,
+            restaurant: restaurantData.restaurant,
           }
         } catch (error) {
           console.error(`Error fetching restaurant ${reservation.restaurantId}:`, error)
@@ -103,8 +92,17 @@ export default function ReservationHistory() {
   }
 
   useEffect(() => {
-    fetchReservations()
-  }, [])
+    if (!authLoading && isAuthenticated) {
+      fetchReservations()
+    } else if (!authLoading && !isAuthenticated) {
+      router.push("/")
+      toast({
+        variant: "destructive",
+        title: "Authentication required",
+        description: "Please login to view your reservations",
+      })
+    }
+  }, [isAuthenticated, authLoading, router])
 
   const handleEdit = (reservationId: string) => {
     router.push(`/reservations/edit/${reservationId}`)
@@ -112,46 +110,62 @@ export default function ReservationHistory() {
 
   const handleDelete = async (reservationId: string) => {
     try {
-      await axios.delete(`${url}/reservation/${reservationId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      setIsDeleting(true)
+      await reservationApi.delete(reservationId)
 
       // Refresh the list after deletion
       fetchReservations()
-    } catch (error) {
-      console.error("Error deleting reservation:", error)
-      setError("Failed to delete reservation. Please try again.")
-    }
-  }
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "confirmed":
-        return <Badge className="bg-green-500">Confirmed</Badge>
-      case "pending":
-        return (
-          <Badge variant="outline" className="text-yellow-600 border-yellow-600">
-            Pending
-          </Badge>
-        )
-      case "cancelled":
-        return <Badge variant="destructive">Cancelled</Badge>
-      default:
-        return <Badge variant="secondary">{status}</Badge>
+      toast({
+        title: "Reservation cancelled",
+        description: "Your reservation has been cancelled successfully",
+      })
+    } catch (error: any) {
+      console.error("Error deleting reservation:", error)
+      toast({
+        variant: "destructive",
+        title: "Failed to cancel reservation",
+        description: error.response?.data?.message || "Please try again",
+      })
+    } finally {
+      setIsDeleting(false)
+      setDeleteId(null)
     }
   }
 
   const formatDate = (dateString: string) => {
     try {
-      return format(new Date(dateString), "PPP")
+      return format(parseISO(dateString), "PPP")
     } catch (error) {
       return dateString
     }
   }
 
-  if (loading) {
+  const formatTime = (dateString: string) => {
+    try {
+      return format(parseISO(dateString), "h:mm a")
+    } catch (error) {
+      return dateString
+    }
+  }
+
+  const calculateDuration = (startTime: string, endTime: string) => {
+    try {
+      const start = parseISO(startTime)
+      const end = parseISO(endTime)
+      const diffInHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
+
+      if (diffInHours < 1) {
+        return `${Math.round(diffInHours * 60)} minutes`
+      }
+
+      return `${diffInHours.toFixed(1)} hours`
+    } catch (error) {
+      return "Unknown"
+    }
+  }
+
+  if (authLoading || loading) {
     return (
       <div className="container mx-auto py-8 px-4">
         <Card>
@@ -190,7 +204,7 @@ export default function ReservationHistory() {
               <Calendar className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium mb-2">No reservations found</h3>
               <p className="text-muted-foreground mb-6">You haven't made any reservations yet.</p>
-              <Button onClick={() => router.push("/restaurants")}>Browse Restaurants</Button>
+              <Button onClick={() => router.push("/")}>Browse Restaurants</Button>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -202,7 +216,6 @@ export default function ReservationHistory() {
                     <TableHead>Date & Time</TableHead>
                     <TableHead>Party Size</TableHead>
                     <TableHead>Duration</TableHead>
-                    <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -232,9 +245,9 @@ export default function ReservationHistory() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-medium">{formatDate(reservation.date)}</span>
+                          <span className="font-medium">{formatDate(reservation.startTime)}</span>
                           <span className="text-sm text-muted-foreground flex items-center">
-                            <Clock className="h-3 w-3 mr-1" /> {reservation.time}
+                            <Clock className="h-3 w-3 mr-1" /> {formatTime(reservation.startTime)}
                           </span>
                         </div>
                       </TableCell>
@@ -246,8 +259,7 @@ export default function ReservationHistory() {
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell>{reservation.duration}</TableCell>
-                      <TableCell>{getStatusBadge(reservation.status)}</TableCell>
+                      <TableCell>{calculateDuration(reservation.startTime, reservation.endTime)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end space-x-2">
                           <Button
@@ -260,13 +272,17 @@ export default function ReservationHistory() {
                             <span className="sr-only">Edit</span>
                           </Button>
 
-                          <AlertDialog>
+                          <AlertDialog
+                            open={deleteId === reservation._id}
+                            onOpenChange={(open) => !open && setDeleteId(null)}
+                          >
                             <AlertDialogTrigger asChild>
                               <Button
                                 variant="outline"
                                 size="icon"
                                 className="text-destructive border-destructive hover:bg-destructive/10"
                                 title="Cancel reservation"
+                                onClick={() => setDeleteId(reservation._id)}
                               >
                                 <Trash2 className="h-4 w-4" />
                                 <span className="sr-only">Delete</span>
@@ -285,8 +301,15 @@ export default function ReservationHistory() {
                                 <AlertDialogAction
                                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                   onClick={() => handleDelete(reservation._id)}
+                                  disabled={isDeleting}
                                 >
-                                  Cancel Reservation
+                                  {isDeleting ? (
+                                    <>
+                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cancelling...
+                                    </>
+                                  ) : (
+                                    "Cancel Reservation"
+                                  )}
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>

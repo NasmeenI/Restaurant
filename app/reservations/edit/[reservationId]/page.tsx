@@ -5,11 +5,11 @@ import { useRouter, useParams } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
-import { CalendarIcon, Clock, MapPin, Phone, Users, Timer, Loader2, AlertCircle, Info } from "lucide-react"
-import { format, addHours } from "date-fns"
+import { CalendarIcon, Clock, MapPin, Phone, Users, Timer, Loader2, ArrowLeft, AlertCircle, Info } from "lucide-react"
+import { format, addHours, parseISO } from "date-fns"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -18,7 +18,6 @@ import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/use-toast"
-import { ToastAction } from "@/components/ui/toast"
 import { useAuth } from "@/context/auth-context"
 import { restaurantApi, reservationApi } from "@/lib/api-service"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -73,6 +72,36 @@ const generateTimeSlots = (openTime: string, closeTime: string) => {
   return slots
 }
 
+// Convert ISO date to time string format (e.g., "7:30 PM")
+const isoToTimeString = (isoString: string) => {
+  try {
+    const date = parseISO(isoString)
+    return format(date, "h:mm a")
+  } catch (error) {
+    console.error("Error parsing date:", error)
+    return "12:00 PM" // Default fallback
+  }
+}
+
+// Calculate duration in hours between two ISO dates
+const calculateDuration = (startTime: string, endTime: string) => {
+  try {
+    const start = parseISO(startTime)
+    const end = parseISO(endTime)
+    const diffInHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
+
+    // Round to nearest supported duration
+    if (diffInHours <= 1.25) return "1 hour"
+    if (diffInHours <= 1.75) return "1.5 hours"
+    if (diffInHours <= 2.25) return "2 hours"
+    if (diffInHours <= 2.75) return "2.5 hours"
+    return "3 hours"
+  } catch (error) {
+    console.error("Error calculating duration:", error)
+    return "2 hours" // Default fallback
+  }
+}
+
 const formSchema = z.object({
   date: z.date({ required_error: "Please select a date for your reservation" }),
   time: z.string({ required_error: "Please select a time for your reservation" }),
@@ -89,9 +118,10 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>
 
-export default function RestaurantReservationPage() {
+export default function EditReservationPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [restaurant, setRestaurant] = useState<any>(null)
+  const [reservation, setReservation] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [timeSlots, setTimeSlots] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -99,63 +129,97 @@ export default function RestaurantReservationPage() {
 
   const router = useRouter()
   const params = useParams()
-  const restaurantId = params.restaurantId as string
+  const reservationId = params.reservationId as string
 
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth()
-
-  useEffect(() => {
-    const fetchRestaurant = async () => {
-      try {
-        setIsLoading(true)
-        setError(null)
-        const data = await restaurantApi.getById(restaurantId)
-        setRestaurant(data.restaurant)
-
-        // Generate time slots based on restaurant hours
-        if (data.restaurant) {
-          const slots = generateTimeSlots(data.restaurant.openTime, data.restaurant.closeTime)
-          setTimeSlots(slots)
-        }
-      } catch (error: any) {
-        console.error("Error fetching restaurant:", error)
-        setError(
-          error.response?.data?.message ||
-            "Failed to load restaurant information. Please try again or select another restaurant.",
-        )
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    if (restaurantId) {
-      fetchRestaurant()
-    }
-  }, [restaurantId])
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       date: new Date(),
-      time: "",
+      time: "6:00 PM",
       duration: "2 hours",
       seats: "2",
       specialRequests: "",
     },
   })
 
-  // Set default time once time slots are loaded
   useEffect(() => {
-    if (timeSlots.length > 0 && !form.getValues("time")) {
-      form.setValue("time", timeSlots[Math.floor(timeSlots.length / 2)])
-    }
-  }, [timeSlots, form])
+    const fetchReservationAndRestaurant = async () => {
+      try {
+        setIsLoading(true)
+        setError(null)
 
-  const handleReservation = async (values: FormValues) => {
+        // Fetch all reservations
+        const reservations = await reservationApi.getOwned()
+
+        // Find the specific reservation
+        const currentReservation = reservations.find((res: any) => res._id === reservationId)
+
+        if (!currentReservation) {
+          setError("The reservation you're trying to edit could not be found.")
+          toast({
+            variant: "destructive",
+            title: "Reservation not found",
+            description: "The reservation you're trying to edit could not be found.",
+          })
+          router.push("/reservations/history")
+          return
+        }
+
+        setReservation(currentReservation)
+
+        // Fetch restaurant details
+        const restaurantData = await restaurantApi.getById(currentReservation.restaurantId)
+        setRestaurant(restaurantData.restaurant)
+
+        // Generate time slots based on restaurant hours
+        if (restaurantData.restaurant) {
+          const slots = generateTimeSlots(restaurantData.restaurant.openTime, restaurantData.restaurant.closeTime)
+          setTimeSlots(slots)
+        }
+
+        // Set form default values based on the reservation
+        const startDate = parseISO(currentReservation.startTime)
+
+        form.reset({
+          date: startDate,
+          time: isoToTimeString(currentReservation.startTime),
+          duration: calculateDuration(currentReservation.startTime, currentReservation.endTime),
+          seats: currentReservation.seats.toString(),
+          specialRequests: currentReservation.specialRequests || "",
+        })
+      } catch (error: any) {
+        console.error("Error fetching data:", error)
+        setError(error.response?.data?.message || "Failed to load reservation information. Please try again later.")
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load reservation information",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (reservationId && isAuthenticated && !authLoading) {
+      fetchReservationAndRestaurant()
+    } else if (!authLoading && !isAuthenticated) {
+      router.push("/")
+      toast({
+        variant: "destructive",
+        title: "Authentication required",
+        description: "Please login to edit reservations",
+      })
+    }
+  }, [reservationId, isAuthenticated, authLoading, router, form])
+
+  const handleUpdateReservation = async (values: FormValues) => {
     if (!isAuthenticated) {
       toast({
         variant: "destructive",
         title: "Authentication required",
-        description: "Please login to make a reservation",
+        description: "Please login to update a reservation",
       })
       return
     }
@@ -195,7 +259,7 @@ export default function RestaurantReservationPage() {
         seats: Number.parseInt(values.seats),
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
-        // specialRequests: values.specialRequests,
+        specialRequests: values.specialRequests,
       }
 
       // Validate seats against restaurant capacity
@@ -205,32 +269,28 @@ export default function RestaurantReservationPage() {
         return
       }
 
-      // Send reservation request
-      await reservationApi.create(restaurantId, reservationData)
+      // Send update request
+      await reservationApi.update(reservationId, reservationData)
 
       toast({
-        title: "Reservation Confirmed!",
-        description: `Your table at ${restaurant.name} has been reserved for ${format(values.date, "PPP")} at ${values.time}.`,
-        action: (
-          <ToastAction altText="View Reservations" onClick={() => router.push("/reservations/history")}>
-            View Reservations
-          </ToastAction>
-        ),
+        title: "Reservation Updated!",
+        description: `Your reservation at ${restaurant.name} has been updated for ${format(values.date, "PPP")} at ${values.time}.`,
       })
 
       // Redirect to reservations history page
       router.push("/reservations/history")
     } catch (error: any) {
-      console.error("Reservation failed:", error)
+      console.error("Update failed:", error)
       setApiError(
         error.response?.data?.message ||
-          "There was a problem making your reservation. Please check your details and try again.",
+          "There was a problem updating your reservation. Please check your details and try again.",
       )
 
       toast({
         variant: "destructive",
-        title: "Reservation Failed",
-        description: error.response?.data?.message || "There was a problem making your reservation. Please try again.",
+        title: "Update Failed",
+        description:
+          error.response?.data?.message || "There was a problem updating your reservation. Please try again.",
       })
     } finally {
       setIsSubmitting(false)
@@ -251,12 +311,12 @@ export default function RestaurantReservationPage() {
     )
   }
 
-  if (!restaurant) {
+  if (!restaurant || !reservation) {
     return (
       <div className="container mx-auto py-8 px-4 text-center">
-        <h1 className="text-2xl font-bold mb-4">Restaurant Not Found</h1>
-        <p className="mb-6">The restaurant you're looking for doesn't exist or has been removed.</p>
-        <Button onClick={() => router.push("/")}>Return to Home</Button>
+        <h1 className="text-2xl font-bold mb-4">Reservation Not Found</h1>
+        <p className="mb-6">The reservation you're looking for doesn't exist or has been removed.</p>
+        <Button onClick={() => router.push("/reservations/history")}>Return to Reservations</Button>
       </div>
     )
   }
@@ -264,7 +324,14 @@ export default function RestaurantReservationPage() {
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold text-center mb-8 text-primary">Make a Reservation</h1>
+        <div className="mb-8">
+          <Button variant="ghost" onClick={() => router.push("/reservations/history")} className="mb-4">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Reservations
+          </Button>
+          <h1 className="text-3xl font-bold text-primary">Edit Reservation</h1>
+          <p className="text-muted-foreground">Update the details of your reservation at {restaurant.name}</p>
+        </div>
 
         {error && (
           <Alert variant="destructive" className="mb-6">
@@ -323,13 +390,13 @@ export default function RestaurantReservationPage() {
           <Card>
             <CardHeader className="border-b">
               <CardTitle className="text-2xl text-primary">Reservation Details</CardTitle>
-              <CardDescription>Fill in your details to reserve a table</CardDescription>
+              <CardDescription>Update your reservation details below</CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
               {apiError && (
                 <Alert variant="destructive" className="mb-6">
                   <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Reservation Error</AlertTitle>
+                  <AlertTitle>Update Error</AlertTitle>
                   <AlertDescription>{apiError}</AlertDescription>
                 </Alert>
               )}
@@ -339,13 +406,13 @@ export default function RestaurantReservationPage() {
                   <Info className="h-4 w-4" />
                   <AlertTitle>Authentication Required</AlertTitle>
                   <AlertDescription>
-                    You need to be logged in to make a reservation. Please log in first.
+                    You need to be logged in to update a reservation. Please log in first.
                   </AlertDescription>
                 </Alert>
               )}
 
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(handleReservation)} className="space-y-6">
+                <form onSubmit={form.handleSubmit(handleUpdateReservation)} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
@@ -489,32 +556,28 @@ export default function RestaurantReservationPage() {
                     )}
                   />
 
-                  <div className="pt-4">
-                    <Button type="submit" className="w-full" disabled={isSubmitting || !isAuthenticated}>
+                  <div className="pt-4 flex gap-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => router.push("/reservations/history")}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" className="flex-1" disabled={isSubmitting}>
                       {isSubmitting ? (
                         <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Updating...
                         </>
-                      ) : !isAuthenticated ? (
-                        "Login to Reserve"
                       ) : (
-                        "Confirm Reservation"
+                        "Update Reservation"
                       )}
                     </Button>
                   </div>
                 </form>
               </Form>
             </CardContent>
-            <CardFooter className="flex flex-col space-y-4 border-t pt-6">
-              <div className="text-sm text-muted-foreground">
-                <p className="font-medium mb-1">Reservation Policy:</p>
-                <ul className="list-disc pl-5 space-y-1">
-                  <li>Reservations can be cancelled up to 2 hours before the scheduled time</li>
-                  <li>Please arrive within 15 minutes of your reservation time</li>
-                  <li>For parties larger than 8, please contact the restaurant directly</li>
-                </ul>
-              </div>
-            </CardFooter>
           </Card>
         </div>
       </div>
